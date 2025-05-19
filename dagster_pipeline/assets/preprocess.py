@@ -6,6 +6,7 @@ from sklearn.preprocessing import StandardScaler, OrdinalEncoder
 from dagster import AssetMaterialization, Output
 
 
+
 @asset
 def split_data(load_data):
     file = load_data

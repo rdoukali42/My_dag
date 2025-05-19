@@ -1,0 +1,11 @@
+# run_config.yaml
+ops:
+  load_data:
+    config:
+      raw_data_path: "/Users/level3/TrackAI/BikeEnv/bikes_rent/src/spotify_data.csv"
+      file_path: "/Users/level3/TrackAI/BikeEnv/bikes_rent/src/spotify_data.csv"
+
+assets:
+  load_data:
+    config:
+      file_path: "/Users/level3/TrackAI/BikeEnv/bikes_rent/src/spotify_data.csv"
