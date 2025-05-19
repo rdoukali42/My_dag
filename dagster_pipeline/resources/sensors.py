@@ -1,12 +1,11 @@
 import os
 from dagster import sensor, RunRequest, define_asset_job
-from dagster_pipeline.assets import print_spotify_csv_head, load_data, split_data, preprocess, train_XGBC, evaluate_spotify_model
+from dagster_pipeline.assets import load_data, split_data, preprocess, train_XGBC, evaluate_spotify_model
 
 # Define the retrain job using your asset graph
 retrain_job = define_asset_job(
     name="retrain_job",
     selection=[
-        "print_spotify_csv_head",
         "load_data",
         "split_data",
         "preprocess",

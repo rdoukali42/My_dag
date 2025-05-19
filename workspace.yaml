@@ -1,0 +1,5 @@
+# workspace.yaml - CORRECT FORMAT
+load_from:
+  - python_module:
+      module_name: dagster_pipeline.repository
+      working_directory: .

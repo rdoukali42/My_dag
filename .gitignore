@@ -1,1 +1,17 @@
 dagster_pipeline.egg-info/
+
+resources/spotify_data-1.csv
+
+__pycache__/
+
+dagster_pipeline/resources/spotify_data.csv
+
+data/
+
+data_io/
+
+tmpqhf_twgz/
+
+dagster_pipeline.egg-info/
+
+dagster_pipeline_tests/
