@@ -18,9 +18,9 @@ def print_spotify_csv_head():
     df = pd.read_csv(file_path)
     print(df.head())
 
-@asset(io_manager_key="local_csv_io_manager", config_schema={"file_path": str})
-def load_data(context):
-    file_path = context.op_config["file_path"]
+@asset
+def clean_spotify_data():
+    file_path = "/Users/level3/TrackAI/BikeEnv/bikes_rent/src/spotify_data.csv"
     df = pd.read_csv(file_path)
     df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
     df = df.drop(['track_id'], axis=1)
@@ -29,16 +29,16 @@ def load_data(context):
     return df
 
 @asset
-def split_data(load_data):
-    file = load_data
+def split_spotify_data(clean_spotify_data):
+    file = clean_spotify_data
     dt = file.drop(['popularity'], axis=1)
     pr = file['popularity']
     dt_train, dt_test, pr_train, pr_test = train_test_split(dt, pr, test_size=0.2, random_state=42)
     return dt_train, dt_test, pr_train, pr_test
 
 @asset
-def preprocess(split_data):
-    dt_train, dt_test, pr_train, pr_test = split_data
+def train_spotify_model(split_spotify_data):
+    dt_train, dt_test, pr_train, pr_test = split_spotify_data
     numeric_features = ['danceability', 'energy', 'key', 'loudness', 'speechiness', 'acousticness', 'instrumentalness', 'liveness', 'valence', 'tempo', 'duration_ms', 'time_signature', 'mode']
     categorical_features = ['artist_name', 'track_name', 'genre']
     ordinal_features = ['year']
@@ -50,23 +50,6 @@ def preprocess(split_data):
             ('ord', OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1), ordinal_features)
         ]
     )
-    return preprocessor.fit_transform(dt_train), preprocessor.transform(dt_test), pr_train, pr_test
-
-@asset
-def train_XGBC(preprocess):
-    preprocessor, dt_train, dt_test, pr_train, pr_test = preprocess
-    # dt_train, dt_test, pr_train, pr_test = split_data
-    # numeric_features = ['danceability', 'energy', 'key', 'loudness', 'speechiness', 'acousticness', 'instrumentalness', 'liveness', 'valence', 'tempo', 'duration_ms', 'time_signature', 'mode']
-    # categorical_features = ['artist_name', 'track_name', 'genre']
-    # ordinal_features = ['year']
-
-    # preprocessor = ColumnTransformer(
-    #     transformers=[
-    #         ('num', StandardScaler(), numeric_features),
-    #         ('cat', OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1), categorical_features),
-    #         ('ord', OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1), ordinal_features)
-    #     ]
-    # )
     weight = ((pr_train == 0).sum() / (pr_train == 1).sum())
     model = Pipeline([
         ('preprocessor', preprocessor),
@@ -78,16 +61,17 @@ def train_XGBC(preprocess):
             colsample_bytree=0.8,
             use_label_encoder=False,
             eval_metric='aucpr',
-            scale_pos_weight=weight
+            scale_pos_weight=weight,
+            random_state=42
         ))
     ])
     model.fit(dt_train, pr_train)
     return model
 
 @asset
-def evaluate_spotify_model(context, train_XGBC, split_data):
-    model = train_XGBC
-    _, dt_test, _, pr_test = split_data
+def evaluate_spotify_model(context, train_spotify_model, split_spotify_data):
+    model = train_spotify_model
+    _, dt_test, _, pr_test = split_spotify_data
     y_pred = model.predict(dt_test)
     y_prob = model.predict_proba(dt_test)[:, 1] if hasattr(model, "predict_proba") else None
 
