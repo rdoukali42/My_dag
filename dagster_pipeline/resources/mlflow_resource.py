@@ -31,6 +31,9 @@ class MLflowResource:
     def end_run(self):
         mlflow.end_run()
 
+    def register_model(self, model_uri, name):
+        return mlflow.register_model(model_uri, name)
+
 mlflow_resource = ResourceDefinition(
     resource_fn=lambda init_context: MLflowResource(
         tracking_uri=os.getenv("MLFLOW_TRACKING_URI"),

@@ -73,4 +73,4 @@ def evaluate_spotify_model(context, train_XGBC, split_data):
             metadata={"value": v}
         ))
 
-    return Output(metrics, metadata=metrics)
+    return Output(value = None, metadata=metrics)
