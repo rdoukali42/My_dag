@@ -11,7 +11,6 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 from dagster import AssetMaterialization, Output
 import io
 import base64
-import mlflow
 
 
 @asset
@@ -65,7 +64,6 @@ def evaluate_spotify_model(context, train_XGBC, split_data):
         "roc_auc": roc_auc,
         "pr_auc": pr_auc
     }
-    mlflow.log_metric("pr_auc", pr_auc)
     for k, v in metrics.items():
         context.log_event(AssetMaterialization(
             asset_key=k,

@@ -131,11 +131,6 @@ def compare_and_promote_model(context, run_id: str, metrics: Dict[str, float]) -
     description="Evaluate the model, log to MLflow, and promote to production if improved"
 )
 def evaluate_and_deploy_model(context: AssetExecutionContext, train_XGBC, split_data, production_metrics) -> Dict[str, float]:
-    """
-    Evaluate model performance, log to MLflow, and handle deployment logic.
-    Compares against current production model and promotes if better.
-    Only logs and registers the model to MLflow if it is the best (by pr_auc).
-    """
     context.log.info("Evaluating model and handling deployment...")
 
     # Unpack split_data

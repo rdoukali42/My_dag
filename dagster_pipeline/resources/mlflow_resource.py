@@ -3,7 +3,6 @@ import mlflow
 import os
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
 load_dotenv()
 
 class MLflowResource:
@@ -39,5 +38,5 @@ mlflow_resource = ResourceDefinition(
         tracking_uri=os.getenv("MLFLOW_TRACKING_URI"),
         experiment_name=os.getenv("MLFLOW_EXPERIMENT_NAME"),
     ),
-    config_schema={},  # No config needed, since we use env vars
+    config_schema={}, 
 )
