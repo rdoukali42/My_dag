@@ -1,21 +1,17 @@
 import pandas as pd
 from dagster import asset
-from sklearn.model_selection import train_test_split
-from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import StandardScaler, OrdinalEncoder
+import mlflow
 from sklearn.pipeline import Pipeline
 from xgboost import XGBClassifier
 from dagster import AssetMaterialization, Output, AssetExecutionContext
 import io
 import base64
 
-@asset
+@asset(required_resource_keys={"mlflow"})
 def train_XGBC(context: AssetExecutionContext, preprocess, split_data) -> Pipeline:
     dt_train, dt_test, pr_train, pr_test = split_data
     preprocessor = preprocess
     weight = ((pr_train == 0).sum() / (pr_train == 1).sum())
-    context.log.info(f"Weight for class 1: {weight}")
-    context.log.info(f"Shape of training data: {dt_train.shape}")
     model = Pipeline([
         ('preprocessor', preprocessor),
         ('classifier', XGBClassifier(
@@ -29,5 +25,9 @@ def train_XGBC(context: AssetExecutionContext, preprocess, split_data) -> Pipeli
             scale_pos_weight=weight
         ))
     ])
-    model.fit(dt_train, pr_train)
+    # Start MLflow run and autolog
+    with context.resources.mlflow.start_run(run_name="train_XGBC"):
+        mlflow.sklearn.autolog()
+        model.fit(dt_train, pr_train)
+        context.log.info("Model trained and logged to MLflow.")
     return model

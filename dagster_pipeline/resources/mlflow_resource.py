@@ -1,5 +1,10 @@
 from dagster import ResourceDefinition
 import mlflow
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 class MLflowResource:
     def __init__(self, tracking_uri=None, experiment_name=None):
@@ -9,6 +14,7 @@ class MLflowResource:
             mlflow.set_tracking_uri(tracking_uri)
         if experiment_name:
             mlflow.set_experiment(experiment_name)
+        mlflow.sklearn.autolog()
 
     def start_run(self, run_name=None):
         return mlflow.start_run(run_name=run_name)
@@ -27,11 +33,8 @@ class MLflowResource:
 
 mlflow_resource = ResourceDefinition(
     resource_fn=lambda init_context: MLflowResource(
-        tracking_uri=init_context.resource_config.get("tracking_uri"),
-        experiment_name=init_context.resource_config.get("experiment_name"),
+        tracking_uri=os.getenv("MLFLOW_TRACKING_URI"),
+        experiment_name=os.getenv("MLFLOW_EXPERIMENT_NAME"),
     ),
-    config_schema={
-        "tracking_uri": str,
-        "experiment_name": str,
-    },
+    config_schema={},  # No config needed, since we use env vars
 )

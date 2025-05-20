@@ -5,6 +5,8 @@ from dagster_pipeline.assets.load_data import load_data
 from dagster_pipeline.assets.preprocess import split_data, preprocess
 from dagster_pipeline.assets.train import train_XGBC
 from dagster_pipeline.assets.evaluate import evaluate_spotify_model
+from dagster_pipeline.assets.Mlflow_deploy import mlflow_deploy_model
+from dagster_pipeline.assets.compare_results import compare_and_update_model
 from dagster_pipeline.assets import load_data, split_data, preprocess, train_XGBC, evaluate_spotify_model
 
 # Import resources
@@ -16,9 +18,9 @@ from dagster_pipeline.resources.sensors import new_data_sensor
 
 
 defs = Definitions(
-    assets=[load_data, split_data, preprocess, train_XGBC, evaluate_spotify_model],
+    assets=[load_data, split_data, preprocess, train_XGBC, evaluate_spotify_model, mlflow_deploy_model, compare_and_update_model],
     resources={"mlflow": mlflow_resource},
-    # resources={
+     # resources={
     #     "io_manager": local_data_io_manager.configured({
     #         "base_dir": "data",
     #         "raw_data_path": "/Users/level3/TrackAI/BikeEnv/bikes_rent/src/spotify_data.csv"
