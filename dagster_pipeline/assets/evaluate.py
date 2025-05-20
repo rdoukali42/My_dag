@@ -13,7 +13,7 @@ import io
 import base64
 
 
-@asset
+@asset(required_resource_keys={"lakefs"})
 def evaluate_spotify_model(context, train_XGBC, split_data):
     model = train_XGBC
     _, dt_test, _, pr_test = split_data
@@ -36,24 +36,6 @@ def evaluate_spotify_model(context, train_XGBC, split_data):
     precision_curve, recall_curve, _ = precision_recall_curve(pr_test, y_prob)
     pr_auc = auc(recall_curve, precision_curve)
 
-    # # Confusion matrix plot
-    # cm = confusion_matrix(pr_test, y_pred, normalize='true')
-    # plt.figure(figsize=(6, 4))
-    # sns.heatmap(cm, annot=True, fmt=".2f", cmap="Blues")
-    # plt.xlabel("Predicted")
-    # plt.ylabel("Actual")
-    # plt.title("Confusion Matrix")
-    # buf = io.BytesIO()
-    # plt.savefig(buf, format='png')
-    # plt.close()
-    # buf.seek(0)
-    # img_bytes = buf.read()
-    # img_b64 = base64.b64encode(img_bytes).decode('utf-8')
-    # context.log_event(AssetMaterialization(
-    #     asset_key="confusion_matrix_plot",
-    #     description="Confusion matrix plot as base64 PNG.",
-    #     metadata={"image/png;base64": img_b64}
-    # ))
 
     # Log metrics to Dagster
     metrics = {
