@@ -46,11 +46,21 @@ def new_data_sensor(context: SensorEvaluationContext) -> Union[SkipReason, List[
     # List all CSV files in the data_prefix
     files = fs.ls(f"{repo}/{branch}/{new_data}")
     # Each entry in files is likely a dict/object, not a string path
-    csv_files = [f["name"] if isinstance(f, dict) else f for f in files if (f["name"] if isinstance(f, dict) else f).endswith(".csv")]
+    # Fix: strip any accidental repo/branch prefix from csv_files
+    def strip_prefix(path):
+        prefix = f"{repo}/{branch}/"
+        return path[len(prefix):] if path.startswith(prefix) else path
+    csv_files = [strip_prefix(f["name"] if isinstance(f, dict) else f) for f in files if (f["name"] if isinstance(f, dict) else f).endswith(".csv")]
 
     # Use the sensor cursor to track which files have been processed
     last_seen = set(context.cursor.split(",")) if context.cursor else set()
-    new_files = set(csv_files) - last_seen
+    # Always sort and deduplicate the file list for consistency
+    csv_files_sorted = sorted(set(csv_files))
+    new_files = [f for f in csv_files_sorted if f not in last_seen]
+
+    context.log.info(f"Sensor detected files: {csv_files_sorted}")
+    context.log.info(f"Already seen files: {sorted(last_seen)}")
+    context.log.info(f"New files to process: {new_files}")
 
     if not new_files:
         return SkipReason("No new CSV files detected in lakeFS.")
@@ -76,6 +86,7 @@ def new_data_sensor(context: SensorEvaluationContext) -> Union[SkipReason, List[
             )
         )
 
-    # Update the cursor to include all seen files
-    context.update_cursor(",".join(csv_files))
+    # Update the cursor to include all seen files (including new ones)
+    all_seen = sorted(set(csv_files_sorted) | last_seen)
+    context.update_cursor(",".join(all_seen))
     return run_requests
