@@ -1,5 +1,5 @@
 import pandas as pd
-from dagster import asset, AssetExecutionContext, AssetMaterialization, MetadataValue
+from dagster import asset, AssetExecutionContext, AssetMaterialization, MetadataValue, AssetKey
 
 @asset
 def predict_asset_act(

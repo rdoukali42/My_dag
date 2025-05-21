@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from dagster import asset, AssetExecutionContext, AssetMaterialization, MetadataValue
+from dagster import asset, AssetExecutionContext, AssetMaterialization, MetadataValue, AssetKey
 import mlflow.pyfunc
 
 @asset(required_resource_keys={"lakefs"})
