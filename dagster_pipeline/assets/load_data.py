@@ -10,15 +10,12 @@ def load_data(context):
     fs = context.resources.lakefs
     repo = os.getenv("LAKEFS_REPOSITORY")
     branch = os.getenv("LAKEFS_DEFAULT_BRANCH")
-    # Use the file path provided by the sensor if available
     lakefs_uri = context.op_config.get("lakefs_uri") if hasattr(context, "op_config") and context.op_config else None
     if lakefs_uri:
-        # Use the file specified by the sensor
         with fs.open(lakefs_uri) as f:
             df = pd.read_csv(f)
         context.log.info(f"Loaded data from lakeFS: {lakefs_uri}")
     else:
-        # Fallback: load the first CSV file in the folder
         folder = os.getenv("LAKEFS_CSV_DATA", "new_data/").rstrip("/")
         files = fs.ls(f"{repo}/{branch}/{folder}/")
         csv_files = [f["name"] if isinstance(f, dict) else f for f in files if (f["name"] if isinstance(f, dict) else f).endswith(".csv")]
@@ -32,11 +29,6 @@ def load_data(context):
         with fs.open(lakefs_uri) as f:
             df = pd.read_csv(f)
         context.log.info(f"Loaded data from lakeFS: {lakefs_uri}")
-    df = df.loc[:, ~df.columns.str.contains("^Unnamed")]
-    df = df.drop(["track_id"], axis=1)
-    df = df[df["year"] != 2023]
-    df["popularity"] = (df["popularity"] >= 50).astype(int)
-    context.log.info(f"Data shape: {df.shape}")
     return df
 
 

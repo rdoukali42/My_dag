@@ -55,10 +55,13 @@ retrain_job = define_asset_job(
     name="retrain_job",
     selection=[
         "load_data",
+        "prepare_data",
         "split_data",
         "preprocess",
         "train_XGBC",
-        "evaluate_spotify_model"
+        "evaluate_and_deploy_model",
+        "serve_model",
+
     ]
 )
 

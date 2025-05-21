@@ -17,13 +17,12 @@ retrain_job = define_asset_job(
     name="retrain_job",
     selection=[
         "load_data",
-        "process_data",
+        "prepare_data",
         "split_data",
         "preprocess",
         "train_XGBC",
         "evaluate_and_deploy_model",
-        "serve_model",
-        "evaluate_spotify_model"
+        "serve_model"
     ]
 )
 
@@ -81,7 +80,8 @@ def new_data_sensor(context: SensorEvaluationContext) -> Union[SkipReason, List[
                     }
                 },
                 tags={
-                    "data_path": csv_path
+                    "data_path": csv_path,
+                    "merge": "0"
                 }
             )
         )

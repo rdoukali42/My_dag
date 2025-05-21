@@ -8,8 +8,8 @@ from dagster import AssetMaterialization, Output
 
 
 @asset
-def split_data(load_data):
-    file = load_data
+def split_data(prepare_data):
+    file = prepare_data
     dt = file.drop(['popularity'], axis=1)
     pr = file['popularity']
     dt_train, dt_test, pr_train, pr_test = train_test_split(dt, pr, test_size=0.2, random_state=42)
