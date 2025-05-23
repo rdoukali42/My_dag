@@ -8,7 +8,7 @@ from datetime import datetime
 load_dotenv()
 
 @asset(required_resource_keys={"lakefs"})
-def process_data(context, load_data: pd.DataFrame):
+def process_data(context, prepare_data: pd.DataFrame):
     fs = context.resources.lakefs
     repo = os.getenv("LAKEFS_REPOSITORY")
     base_branch = os.getenv("LAKEFS_DEFAULT_BRANCH")
@@ -29,7 +29,7 @@ def process_data(context, load_data: pd.DataFrame):
 
     # Save processed data
     with fs.open(f"lakefs://{repo}/{branch_name}/{output_path}", "w") as f:
-        load_data.to_csv(f, index=False)
+        prepare_data.to_csv(f, index=False)
 
     context.log.info(f"Saved processed data to {repo}/{branch_name}/{output_path}")
     return branch_name

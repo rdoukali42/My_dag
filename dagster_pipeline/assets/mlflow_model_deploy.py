@@ -21,108 +21,18 @@ from dagster import (
     MetadataValue
 )
 
+from dagster_pipeline.utils.mlflow_utils import (
+    log_metrics,
+    get_best_production_model,
+    compare_and_promote_model,
+
+    # Remove local constants, use centralized config from mlflow_utils
+    MODEL_NAME, MLFLOW_TRACKING_URI, MLFLOW_EXPERIMENT_NAME, METRIC_FOR_COMPARISON
+)
+
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
-# Constants (now from .env)
-MODEL_NAME = "spotify_popularity_predictor"  # os.environ.get("MLFLOW_MODEL_NAME", "spotify_popularity_predictor")
-MLFLOW_TRACKING_URI = "http://localhost:5010"  # os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5010")
-MLFLOW_EXPERIMENT_NAME = "Dagster_Mlflow"  # os.environ.get("MLFLOW_EXPERIMENT_NAME", "Dagster_Mlflow")
-METRIC_FOR_COMPARISON = "pr_auc"  # os.environ.get("MLFLOW_METRIC_FOR_COMPARISON", "rmse")  # e.g. "pr_auc" or "rmse"
-
-
-def log_metrics(y_true, y_pred, y_prob) -> Dict[str, float]:
-    """Calculate and return model performance metrics as in evaluate_spotify_model."""
-    from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, precision_recall_curve, auc
-    accuracy = accuracy_score(y_true, y_pred)
-    precision_val = precision_score(y_true, y_pred)
-    recall_val = recall_score(y_true, y_pred)
-    f1 = f1_score(y_true, y_pred)
-    roc_auc = roc_auc_score(y_true, y_prob) if y_prob is not None else None
-    precision_curve, recall_curve, _ = precision_recall_curve(y_true, y_prob)
-    pr_auc = auc(recall_curve, precision_curve)
-    return {
-        "accuracy": accuracy,
-        "precision": precision_val,
-        "recall": recall_val,
-        "f1_score": f1,
-        "roc_auc": roc_auc,
-        "pr_auc": pr_auc
-    }
-
-
-def get_best_production_model(context) -> Tuple[Optional[str], Optional[Dict[str, float]]]:
-
-    # Use .env for ACTUAL_MODEL_PR_AUC as in your pipeline
-    env_path = os.path.join(os.path.dirname(__file__), '../../.env')
-    current_auc = 0.0
-    with open(env_path, 'r') as f:
-        for line in f:
-            if line.strip().startswith("ACTUAL_MODEL_PR_AUC"):
-                try:
-                    current_auc = float(line.strip().split('=')[1])
-                except Exception:
-                    current_auc = 0.0
-    # If you want to return a model_uri, you can use MLflow model registry if needed
-    return None, {"pr_auc": current_auc}
-
-
-def compare_and_promote_model(context, run_id: str, metrics: Dict[str, float]) -> bool:
-    client = MlflowClient()
-    model_name = context.resources.mlflow.experiment_name
-    metric_name = "pr_auc"
-    new_pr_auc = metrics.get(metric_name)
-    if new_pr_auc is None:
-        context.log.error("No pr_auc found in metrics. Skipping promotion.")
-        return False
-
-    env_path = os.path.join(os.path.dirname(__file__), '../../.env')
-    current_auc = 0.0
-    with open(env_path, 'r') as f:
-        for line in f:
-            if line.strip().startswith("ACTUAL_MODEL_PR_AUC"):
-                try:
-                    current_auc = float(line.strip().split('=')[1])
-                except Exception:
-                    current_auc = 0.0
-    context.log.info(f"Current best PR AUC: {current_auc}, New PR AUC: {new_pr_auc}")
-
-    if new_pr_auc > current_auc:
-        # Find the latest model version just registered (stage=None)
-        latest_versions = client.get_latest_versions(MODEL_NAME, stages=["None"])
-        if latest_versions:
-            version = latest_versions[0].version
-            client.transition_model_version_stage(
-                name=MODEL_NAME,
-                version=version,
-                stage="Production",
-                archive_existing_versions=True
-            )
-            context.log.info(f"Promoted model version {version} to Production.")
-        else:
-            context.log.warning("No model version found to promote.")
-            return False
-        # Update .env file
-        with open(env_path, 'r') as f:
-            lines = f.readlines()
-        new_lines = []
-        found = False
-        for line in lines:
-            if line.strip().startswith("ACTUAL_MODEL_PR_AUC"):
-                new_lines.append(f"ACTUAL_MODEL_PR_AUC={new_pr_auc}\n")
-                found = True
-            else:
-                new_lines.append(line)
-        if not found:
-            new_lines.append(f"ACTUAL_MODEL_PR_AUC={new_pr_auc}\n")
-        with open(env_path, 'w') as f:
-            f.writelines(new_lines)
-        context.log.info(f"Updated .env with new PR AUC: {new_pr_auc}")
-        return True
-    else:
-        context.log.info("No update to .env; new model did not outperform current best.")
-        return False
 
 
 @asset(

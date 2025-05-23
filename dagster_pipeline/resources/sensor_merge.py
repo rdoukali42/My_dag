@@ -15,7 +15,7 @@ import time
 from dagster_pipeline.resources.sensors import retrain_job
 @sensor(
     job=retrain_job,
-    minimum_interval_seconds=60,
+    minimum_interval_seconds=30,
     description="Monitors lakeFS 'merge_data' folder for new CSVs and merges them if columns match.",
     required_resource_keys={"lakefs"}
 )

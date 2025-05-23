@@ -1,16 +1,26 @@
 from lakefs_spec import LakeFSFileSystem
-from dagster import resource
-import os
-from dotenv import load_dotenv
+from dagster import resource, Field
 
-load_dotenv()
 
-@resource
-def lakefs_resource(_):
+@resource(
+    config_schema={
+        "host": Field(str, description="lakeFS server URL"),
+        "username": Field(str, description="lakeFS access key ID"),
+        "password": Field(str, description="lakeFS secret access key"),
+        "repository": Field(str, description="Default repository name"),
+        "default_branch": Field(
+            str,
+            default_value="main",
+            description="Default branch to use"
+        )
+    }
+)
+def lakefs_resource(context):
+    cfg = context.resource_config
     return LakeFSFileSystem(
-        host=os.getenv("LAKEFS_HOST"),
-        username=os.getenv("LAKEFS_USERNAME"),
-        password=os.getenv("LAKEFS_PASSWORD"),
-        default_repo=os.getenv("LAKEFS_REPOSITORY"),
-        default_branch=os.getenv("LAKEFS_DEFAULT_BRANCH", "main")
+        host=cfg["host"],
+        username=cfg["username"],
+        password=cfg["password"],
+        default_repo=cfg["repository"],
+        default_branch=cfg["default_branch"]
     )

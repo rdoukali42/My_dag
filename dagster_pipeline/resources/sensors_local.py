@@ -59,6 +59,7 @@ retrain_job = define_asset_job(
         "split_data",
         "preprocess",
         "train_XGBC",
+        "get_production_model_metrics",
         "evaluate_and_deploy_model",
         "serve_model",
 

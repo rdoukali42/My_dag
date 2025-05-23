@@ -1,10 +1,10 @@
 from dagster import asset, AssetExecutionContext, MetadataValue
 from mlflow.tracking import MlflowClient
-import os
+from dagster_pipeline.utils.mlflow_utils import MODEL_NAME
 
 @asset(required_resource_keys={"mlflow"}, description="Fetch and log production model metrics from MLflow.")
 def get_production_model_metrics(context: AssetExecutionContext) -> dict:
-    model_name = os.getenv("MLFLOW_EXPERIMENT_NAME", "Dagster_Mlflow")
+    model_name = MODEL_NAME
     client = MlflowClient()
     prod_versions = client.get_latest_versions(model_name, stages=["Production"])
     if not prod_versions:

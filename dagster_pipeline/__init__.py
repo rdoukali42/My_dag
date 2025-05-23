@@ -7,16 +7,3 @@ from .repository import defs
 
 __all__ = ["defs"]
 
-# all_assets = load_assets_from_modules([assets])
-
-# defs = Definitions(
-#     assets=all_assets,
-#     resources={
-#         "mlflow": mlflow_resource,
-#         "local_data_io_manager": local_data_io_manager,
-#     },
-# )
-
-# __init__.py (optional)
-# from .assets import load_data
-# from .resources import local_data_io_manager

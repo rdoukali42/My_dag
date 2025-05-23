@@ -9,7 +9,9 @@ setup(
         "dagster-snowflake==0.23.7",
         "pymongo>=4.3.3",
         "dlt[snowflake]>=0.3.5",
-        "scikit-learn==1.5.0"
+        "scikit-learn==1.5.0",
+        "chardet>=5.0.0"
     ],
     extras_require={"dev": ["dagster-webserver", "pytest"]},
 )
+

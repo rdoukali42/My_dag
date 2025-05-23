@@ -33,7 +33,6 @@ retrain_job = define_asset_job(
     required_resource_keys={"lakefs"}
 )
 def new_data_sensor(context: SensorEvaluationContext) -> Union[SkipReason, List[RunRequest]]:
-    # Get lakeFS resource configuration
     import os
     fs = context.resources.lakefs
     repo = os.getenv("LAKEFS_REPOSITORY")
@@ -44,7 +43,6 @@ def new_data_sensor(context: SensorEvaluationContext) -> Union[SkipReason, List[
 
     # List all CSV files in the data_prefix
     files = fs.ls(f"{repo}/{branch}/{new_data}")
-    # Each entry in files is likely a dict/object, not a string path
     # Fix: strip any accidental repo/branch prefix from csv_files
     def strip_prefix(path):
         prefix = f"{repo}/{branch}/"

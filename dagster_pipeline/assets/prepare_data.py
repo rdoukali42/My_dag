@@ -12,4 +12,5 @@ def prepare_data(context: AssetExecutionContext, load_data: pd.DataFrame) -> pd.
     if "popularity" in df.columns:
         df["popularity"] = (df["popularity"] >= 50).astype(int)
     context.log.info(f"Prepared data shape: {df.shape}")
+    context.log.info(f"Prepared data shape: {df.head(1)}")
     return df
