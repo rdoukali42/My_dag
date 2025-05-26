@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  lakefs-postgres:
+    image: postgres:14
+    container_name: lakefs-postgres-db
+    environment:
+      POSTGRES_USER: lakefs
+      POSTGRES_PASSWORD: lakefs_password
+      POSTGRES_DB: lakefs_db
+    volumes:
+      - lakefs_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    networks:
+      - lakefs-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lakefs"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  lakefs-server:
+    image: treeverse/lakefs:latest
+    container_name: lakefs-data-server
+    depends_on:
+      lakefs-postgres:
+        condition: service_healthy
+    environment:
+      - LAKEFS_AUTH_ENCRYPT_SECRET_KEY=some-secret-key-change-me-in-production
+      - LAKEFS_DATABASE_TYPE=postgres
+      - LAKEFS_DATABASE_POSTGRES_CONNECTION_STRING=postgres://lakefs:lakefs_password@lakefs-postgres:5432/lakefs_db?sslmode=disable
+      - LAKEFS_BLOCKSTORE_TYPE=local
+      - LAKEFS_BLOCKSTORE_LOCAL_PATH=/data
+      - LAKEFS_GATEWAYS_S3_DOMAIN_NAME=s3.local.lakefs.io:8000
+      - LAKEFS_STATS_ENABLED=false
+      - LAKEFS_LOGGING_LEVEL=INFO
+    ports:
+      - "8000:8000"
+    volumes:
+      - lakefs_data:/data
+      - lakefs_config:/etc/lakefs
+    networks:
+      - lakefs-network
+    command: ["run"]
+    restart: unless-stopped
+    user: "0:0"  # Run as root to avoid permission issues
+    tmpfs:
+      - /tmp
+
+volumes:
+  lakefs_postgres_data:
+    driver: local
+  lakefs_data:
+    driver: local
+  lakefs_config:
+    driver: local
+
+networks:
+  lakefs-network:
+    driver: bridge
