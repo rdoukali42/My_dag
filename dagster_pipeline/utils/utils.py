@@ -3,7 +3,6 @@ import pandas as pd
 
 
 
-
 def list_lakefs_csv_files(fs, repo, branch, folder):
     files = fs.ls(f"{repo}/{branch}/{folder}/")
     return [f["name"] if isinstance(f, dict) else f for f in files if (f["name"] if isinstance(f, dict) else f).endswith(".csv")]

@@ -3,7 +3,9 @@ import pandas as pd
 from dagster import asset, AssetExecutionContext, AssetMaterialization, MetadataValue, AssetKey
 import mlflow.pyfunc
 
-@asset(required_resource_keys={"lakefs"})
+@asset(required_resource_keys={"lakefs"},
+       group_name="Model_Prediction",
+       description="Predict the percentage of correct predictions using a trained model on new data.")
 def predict_percent(context: AssetExecutionContext, prepare_data) -> float:
     # Use the loaded data (should be a DataFrame)
     df = prepare_data

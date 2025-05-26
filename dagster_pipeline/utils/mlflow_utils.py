@@ -1,5 +1,3 @@
-# filepath: /Users/level3/TrackAI/mlops/dagster_pipeline/dagster_pipeline/utils/mlflow_utils.py
-
 import os
 import pandas as pd
 import numpy as np
@@ -58,8 +56,8 @@ def get_best_production_model(context) -> Tuple[Optional[str], Optional[Dict[str
     return None, {METRIC_FOR_COMPARISON: current_auc}
 
 
-def compare_and_promote_model(context, run_id: str, metrics: Dict[str, float]) -> bool:
-    """Promote model to production if new metric is better than current best in .env, and update .env."""
+def compare_and_promote_model(context, run_id: str, metrics: Dict[str, float], current_auc) -> bool:
+    """Promote model to production if new metric is better than current best, and update .env."""
     client = MlflowClient()
     new_pr_auc = metrics.get(METRIC_FOR_COMPARISON)
     if new_pr_auc is None:
@@ -67,14 +65,6 @@ def compare_and_promote_model(context, run_id: str, metrics: Dict[str, float]) -
         return False
 
     env_path = os.path.join(os.path.dirname(__file__), '../../.env')
-    current_auc = 0.0
-    with open(env_path, 'r') as f:
-        for line in f:
-            if line.strip().startswith("ACTUAL_MODEL_PR_AUC"):
-                try:
-                    current_auc = float(line.strip().split('=')[1])
-                except Exception:
-                    current_auc = 0.0
     context.log.info(f"Current best {METRIC_FOR_COMPARISON}: {current_auc}, New {METRIC_FOR_COMPARISON}: {new_pr_auc}")
 
     if new_pr_auc > current_auc:

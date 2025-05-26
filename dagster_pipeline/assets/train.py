@@ -7,9 +7,11 @@ from dagster import AssetMaterialization, Output, AssetExecutionContext
 import io
 import base64
 
-@asset(required_resource_keys={"mlflow"})
-def train_XGBC(context: AssetExecutionContext, preprocess, split_data) -> Pipeline:
-    dt_train, dt_test, pr_train, pr_test = split_data
+@asset(required_resource_keys={"mlflow"},
+       group_name="Model_Training",
+       description="Train an XGBoost classifier on the preprocessed data.")
+def train_XGBC(context: AssetExecutionContext, preprocess, split_data_train) -> Pipeline:
+    dt_train, pr_train = split_data_train
     preprocessor = preprocess
     weight = ((pr_train == 0).sum() / (pr_train == 1).sum())
     model = Pipeline([

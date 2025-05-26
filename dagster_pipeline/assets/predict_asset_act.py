@@ -1,7 +1,8 @@
 import pandas as pd
 from dagster import asset, AssetExecutionContext, AssetMaterialization, MetadataValue, AssetKey
 
-@asset
+@asset(group_name="Model_Prediction",
+       description="Predict asset activity using a trained XGBoost classifier.")
 def predict_asset_act(
     context: AssetExecutionContext,
     prepare_data: pd.DataFrame,

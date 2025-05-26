@@ -8,8 +8,12 @@ import json
 import pickle
 import os
 import re
+import io
+from io import StringIO
 from datetime import datetime
 from dotenv import load_dotenv
+from lakefs_client.exceptions import NotFoundException
+from lakefs_client.models import BranchCreation
 
 # Optional import for encoding detection
 try:
@@ -21,22 +25,7 @@ except ImportError:
 
 # Load environment variables from .env file
 load_dotenv()
-class LakeFSClient:
-    def __init__(
-        self,
-        lakefs_endpoint: str,
-        lakefs_access_key: str,
-        lakefs_secret_key: str,
-        repository: str,
-        branch: str = "main",
-        path_prefix: str = "",
-    ):
-        self.lakefs_endpoint = lakefs_endpoint
-        self.lakefs_access_key = lakefs_access_key
-        self.lakefs_secret_key = lakefs_secret_key
-        self.repository = repository
-        self.branch = branch
-        self.path_prefix = path_prefix
+
 
         
 class MyIOManager(dg.ConfigurableIOManager):
@@ -49,19 +38,21 @@ class MyIOManager(dg.ConfigurableIOManager):
     lakefs_endpoint: str
     lakefs_access_key: str
     lakefs_secret_key: str
+    client: Any  # LakeFSClient instance
     repository: str
     branch: str = "main"
     path_prefix: list[str] = []
 
-    @property
-    def client(self) -> LakeFSClient:
-        return LakeFSClient(self.lakefs_endpoint, self.lakefs_access_key, self.lakefs_secret_key, self.repository, self.branch, self.path_prefix)
+
 
     def _get_path(self, context) -> str:
         asset_path = '/'.join(self.path_prefix + list(context.asset_key.path))
         # Return a LakeFS URI
-        return f"lakefs://{self.repository}/{self.branch}/{asset_path}"
-
+        return f"lakefs://{self.repository}/{self.branch}/processed_data/{asset_path}"
+    
+    def _folder_path(self, context) -> str:
+        asset_path = '/'.join(self.path_prefix + list(context.asset_key.path))
+        return f"processed_data/{asset_path}"
     def _get_fs(self):
         return LakeFSFileSystem(
             host=self.lakefs_endpoint,
@@ -69,112 +60,10 @@ class MyIOManager(dg.ConfigurableIOManager):
             password=self.lakefs_secret_key,
         )
 
-    def _get_local_fallback_path(self, context) -> str:
-        """Get local fallback path for when LakeFS is not accessible."""
-        asset_path = '/'.join(self.path_prefix + list(context.asset_key.path))
-        # Use local dagster-cloud directory as fallback
-        return f"dagster-cloud/{self.branch}/{asset_path}"
-
-    def _load_from_local(self, local_path: str, context) -> Any:
-        """Load data from local file system as fallback."""
-        import os
-        
-        # Try DataFrame
-        if os.path.exists(local_path + '.csv'):
-            file_path = local_path + '.csv'
-            try:
-                # Use the same encoding fallback logic
-                encodings_to_try = ['utf-8', 'latin-1', 'cp1252', 'iso-8859-1']
-                
-                for encoding in encodings_to_try:
-                    try:
-                        print(f"[DEBUG] Trying to load local CSV with encoding: {encoding}")
-                        return pd.read_csv(file_path, encoding=encoding)
-                    except UnicodeDecodeError as e:
-                        print(f"[DEBUG] {encoding} decode failed: {e}")
-                        continue
-                    except Exception as e:
-                        print(f"[DEBUG] Failed to load local CSV with {encoding}: {e}")
-                        continue
-                
-                # Last resort: try with errors='ignore'
-                try:
-                    print(f"[WARNING] Loading local CSV with UTF-8 and ignoring decode errors")
-                    return pd.read_csv(file_path, encoding='utf-8', errors='ignore')
-                except Exception as e:
-                    print(f"[DEBUG] Failed to load local CSV with error handling: {e}")
-            except Exception as e:
-                print(f"[DEBUG] Failed to load local CSV: {e}")
-        
-        # Try pickle
-        if os.path.exists(local_path + '.pkl'):
-            with open(local_path + '.pkl', 'rb') as f:
-                return pickle.load(f)
-        
-        # Try JSON
-        if os.path.exists(local_path + '.json'):
-            try:
-                with open(local_path + '.json', 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except UnicodeDecodeError:
-                with open(local_path + '.json', 'r', encoding='latin-1') as f:
-                    return json.load(f)
-        
-        # Try float/int/str
-        if os.path.exists(local_path + '.txt'):
-            try:
-                with open(local_path + '.txt', 'r', encoding='utf-8') as f:
-                    val = f.read()
-                    try:
-                        return float(val) if '.' in val else int(val)
-                    except Exception:
-                        return val
-            except UnicodeDecodeError:
-                with open(local_path + '.txt', 'r', encoding='latin-1') as f:
-                    val = f.read()
-                    try:
-                        return float(val) if '.' in val else int(val)
-                    except Exception:
-                        return val
-        
-        # Try None
-        if os.path.exists(local_path + '.none'):
-            return None
-            
-        raise FileNotFoundError(f"No persisted object found at {local_path} (tried .csv, .json, .pkl, .txt, .none)")
-
-    def _detect_encoding(self, fs, path: str) -> str:
-        """Detect file encoding by reading a sample of the file."""
-        if not HAS_CHARDET:
-            print(f"[DEBUG] chardet not available, defaulting to utf-8")
-            return 'utf-8'
-            
-        try:
-            # Read first 10KB to detect encoding
-            with fs.open(path, 'rb') as f:
-                raw_data = f.read(10240)  # Read 10KB
-            
-            if raw_data:
-                detected = chardet.detect(raw_data)
-                encoding = detected.get('encoding', 'utf-8')
-                confidence = detected.get('confidence', 0)
-                
-                print(f"[DEBUG] Detected encoding: {encoding} (confidence: {confidence:.2f})")
-                
-                # If confidence is low, fallback to common encodings
-                if confidence < 0.7:
-                    print(f"[DEBUG] Low confidence, trying common encodings")
-                    return 'utf-8'  # Will fallback in the calling method
-                
-                return encoding
-            else:
-                return 'utf-8'
-        except Exception as e:
-            print(f"[DEBUG] Encoding detection failed: {e}")
-            return 'utf-8'
 
     def handle_output(self, context: dg.OutputContext, obj: Any):
         path = self._get_path(context)
+        folder_path = self._folder_path(context)
         fs = self._get_fs()
         context.log.info(f"Preparing to write data to lakeFS: {path}")
         try:
@@ -186,8 +75,18 @@ class MyIOManager(dg.ConfigurableIOManager):
         # DataFrame
         if isinstance(obj, pd.DataFrame):
             path = path + '.csv'
-            with fs.open(path, 'w', encoding='utf-8') as f:
-                obj.to_csv(f, index=False)
+            folder_path = folder_path + '.csv'
+            # with fs.open(path, 'w', encoding='utf-8') as f:
+            #     obj.to_csv(f, index=False)
+            csv_content = obj.to_csv(index=False)
+            csv_bytes = csv_content.encode('utf-8')
+            csv_file = io.BytesIO(csv_bytes)
+            self.client.objects.upload_object(
+                repository=self.repository,
+                branch=self.branch,
+                path=folder_path,
+                content=csv_file
+            )
         # Tuple/list of DataFrames (e.g., split_data)
         elif isinstance(obj, (tuple, list)) and all(isinstance(x, pd.DataFrame) for x in obj):
             # path = path + '.pkl'
@@ -234,51 +133,45 @@ class MyIOManager(dg.ConfigurableIOManager):
 
     def load_input(self, context) -> Any:
         path = self._get_path(context)
+        folder_path = self._folder_path(context)
         fs = self._get_fs()
         print(f"[DEBUG] Checking for file: {path}")
         
-        # First try LakeFS
         try:
-            print(f"[DEBUG] fs.exists(path): {fs.exists(path)}")
-            print(f"[DEBUG] Listing dir: lakefs://{self.repository}/{self.branch}/")
-            print(f"[DEBUG] fs.ls: {fs.ls(f'lakefs://{self.repository}/{self.branch}/')}")
             lakefs_available = True
         except Exception as e:
-            print(f"[DEBUG] LakeFS not accessible: {e}")
+            # print(f"[DEBUG] LakeFS not accessible: {e}")
             lakefs_available = False
             
-        # If LakeFS is not available, try local fallback
-        if not lakefs_available:
-            local_path = self._get_local_fallback_path(context)
-            print(f"[DEBUG] Trying local fallback: {local_path}")
-            return self._load_from_local(local_path, context)
             
-        # LakeFS is available, proceed with LakeFS loading
         # Try DataFrame
         if fs.exists(path + '.csv'):
             path = path + '.csv'
+            folder_path = folder_path + '.csv'
+            print(f"[DEBUG] fs.exists(path): {fs.exists(path)}")
+            print(f"[DEBUG] Listing dir: lakefs://{self.repository}/{self.branch}/")
+            print(f"[DEBUG] fs.ls: {fs.ls(f'lakefs://{self.repository}/{self.branch}/')}")
+
+            try:
+                response = self.client.objects.get_object(
+                    repository=self.repository,
+                    ref=self.branch,
+                    path=folder_path
+                )
+
+                csv_content = response.read().decode('utf-8')
+                context.log.info(f"✅ Downloaded {len(csv_content)} characters")
+
+                
+                df = pd.read_csv(StringIO(csv_content))
+                context.log.info(f"✅ Loaded DataFrame: {df.shape}")
+
+                return df
+        
+            except Exception as e:
+                context.log.error(f"❌ Download failed from {self.repository}/{self.branch}/{path}: {e}")
+                raise
             
-            # First, try to detect the encoding
-            detected_encoding = self._detect_encoding(fs, path)
-            
-            # List of encodings to try in order
-            encodings_to_try = [detected_encoding, 'utf-8', 'latin-1', 'cp1252', 'iso-8859-1']
-            # Remove duplicates while preserving order
-            encodings_to_try = list(dict.fromkeys(encodings_to_try))
-            
-            for encoding in encodings_to_try:
-                try:
-                    print(f"[DEBUG] Trying to load CSV with encoding: {encoding}")
-                    with fs.open(path, 'r', encoding=encoding) as f:
-                        return pd.read_csv(f)
-                except UnicodeDecodeError as e:
-                    print(f"[DEBUG] {encoding} decode failed: {e}")
-                    continue
-                except Exception as e:
-                    print(f"[DEBUG] Failed to load CSV with {encoding}: {e}")
-                    continue
-            
-            # Last resort: try with errors='ignore' to skip problematic bytes
             try:
                 print(f"[WARNING] Loading CSV with UTF-8 and ignoring decode errors")
                 with fs.open(path, 'r', encoding='utf-8', errors='ignore') as f:
@@ -319,27 +212,13 @@ class MyIOManager(dg.ConfigurableIOManager):
         if fs.exists(path + '.none'):
             return None
             
-        # If nothing found in LakeFS, try local fallback as last resort
-        print(f"[DEBUG] Nothing found in LakeFS, trying local fallback")
-        local_path = self._get_local_fallback_path(context)
-        try:
-            return self._load_from_local(local_path, context)
-        except FileNotFoundError:
-            raise FileNotFoundError(f"No persisted object found at {path} or {local_path} (tried .csv, .json, .pkl, .txt, .none)")
 
-# @io_manager
-# def my_io_manager(init_context):
-#     # No config needed, all from env
-#     print("LAKEFS HOST:", os.environ.get("LAKEFS_HOST"))
-#     print("LAKEFS USERNAME:", os.environ.get("LAKEFS_USERNAME"))
-#     print("LAKEFS PASSWORD:", os.environ.get("LAKEFS_PASSWORD"))
-#     print("LAKEFS REPO:", os.environ.get("LAKEFS_REPOSITORY"))
-#     print("LAKEFS BRANCH:", os.environ.get("LAKEFS_DEFAULT_BRANCH"))
-#     return MyIOManager(path_prefix=[])
-
-@io_manager
+@io_manager(
+    required_resource_keys={"lakefs", "lakefs_client"}
+)
 def my_io_manager_from_env(context, required_resource_keys={"lakefs"}) -> MyIOManager:
     return MyIOManager(
+        client=context.resources.lakefs_client,
         lakefs_endpoint=os.environ["LAKEFS_HOST"],
         lakefs_access_key=os.environ["LAKEFS_USERNAME"],
         lakefs_secret_key=os.environ["LAKEFS_PASSWORD"],

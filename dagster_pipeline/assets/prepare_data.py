@@ -1,7 +1,8 @@
 import pandas as pd
 from dagster import asset, AssetExecutionContext
 
-@asset
+@asset(group_name="Data_Preparation",
+       description="Prepare data by cleaning and transforming the loaded DataFrame.")
 def prepare_data(context: AssetExecutionContext, load_data: pd.DataFrame) -> pd.DataFrame:
     df = load_data.copy()
     df = df.loc[:, ~df.columns.str.contains("^Unnamed")]
