@@ -19,6 +19,8 @@ retrain_job = define_asset_job(
         "load_data",
         "prepare_data",
         "split_data",
+        "split_data_train",
+        "split_data_test",
         "preprocess",
         "train_XGBC",
         "evaluate_and_deploy_model",

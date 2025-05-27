@@ -3,15 +3,16 @@ import os
 
 # Import assets
 from dagster_pipeline.assets.load_data import load_data
-from dagster_pipeline.assets.preprocess import split_data, preprocess
+from dagster_pipeline.assets.preprocess import split_data, split_data_train, split_data_test, preprocess
 from dagster_pipeline.assets.train import train_XGBC
 from dagster_pipeline.assets.mlflow_model_deploy import evaluate_and_deploy_model, serve_model
 from dagster_pipeline.assets.getProdMetrics import get_production_model_metrics
-from dagster_pipeline.assets import load_data, split_data, preprocess, train_XGBC
 from dagster_pipeline.assets.prepare_data import prepare_data
 from dagster_pipeline.assets.predict_percent import predict_percent
 from dagster_pipeline.assets.predict_asset_act import predict_asset_act
-from dagster_pipeline.assets.preprocess import split_data_train, split_data_test
+
+# Import jobs instead of assets for LakeFS operations
+from dagster_pipeline.jobs.lakefs_jobs import setup_lakefs_job, cleanup_lakefs_job
 
 # Import resources
 from dagster_pipeline.resources import mlflow_resource
@@ -24,13 +25,13 @@ from dagster_pipeline.resources.sensors import new_data_sensor
 from dagster_pipeline.resources.sensor_merge import merge_and_retrain_sensor
 # from dagster_pipeline.resources.sensor_check_merge import check_merge_sensor, after_test_job_sensor, after_retrain_job_sensor
 
-lakefs_config = {
-    "host": "http://localhost:8000/",
-    "username": "AKIAJR5HULP424UQEVVQ",
-    "password": "RmC0y4XMFfC4wEXj181jxxFKt03Px1MzCsGWSUQkY",
-    "repository": "dagster-cloud",
-    "default_branch": "main"
-}
+# lakefs_config = {
+#     "host": "http://localhost:8000/",
+#     "username": "AKIAJR5HULP424UQEVVQ",
+#     "password": "RmC0y4XMFfC4wEXj181jxxFKt03Px1MzCsGWSUQkY",
+#     "repository": "dagster-cloud",
+#     "default_branch": "main"
+# }
 
 defs = Definitions(
     assets=[
@@ -46,6 +47,12 @@ defs = Definitions(
         get_production_model_metrics,
         predict_percent,
         predict_asset_act,
+        # setup_lakefs_repository,
+        # cleanup_lakefs_repository
+    ],
+    jobs = [
+        setup_lakefs_job,
+        cleanup_lakefs_job
     ],
     resources={
         "mlflow": mlflow_resource,

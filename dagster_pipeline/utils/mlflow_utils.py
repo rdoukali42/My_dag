@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 env_path = os.path.join(os.path.dirname(__file__), '../../.env')
 load_dotenv(env_path)
 
-MODEL_NAME = os.getenv("MLFLOW_MODEL_NAME", "spotify_popularity_predictor")
+MODEL_NAME = os.getenv("MLFLOW_MODEL_NAME", "Spotify_model")
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5010")
 MLFLOW_EXPERIMENT_NAME = os.getenv("MLFLOW_EXPERIMENT_NAME", "Dagster_Mlflow")
 METRIC_FOR_COMPARISON = os.getenv("METRIC_FOR_COMPARISON", "pr_auc")

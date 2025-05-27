@@ -28,7 +28,7 @@ def split_data_test(split_data):
     dt_train, dt_test, pr_train, pr_test = split_data
     return dt_test, pr_test
 
-@asset(group_name="Data_Split_Catgorization",
+@asset(group_name="Data_Catgorization_Encoding",
        description="Asset that Categorizes and encodes the data")
 def preprocess() -> ColumnTransformer:
     numeric_features = ['danceability', 'energy', 'key', 'loudness', 'speechiness', 'acousticness', 'instrumentalness', 'liveness', 'valence', 'tempo', 'duration_ms', 'time_signature', 'mode']

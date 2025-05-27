@@ -40,7 +40,7 @@ class MyIOManager(dg.ConfigurableIOManager):
     lakefs_secret_key: str
     client: Any  # LakeFSClient instance
     repository: str
-    branch: str = "main"
+    branch: str = "Processed_data"
     path_prefix: list[str] = []
 
 
@@ -48,11 +48,11 @@ class MyIOManager(dg.ConfigurableIOManager):
     def _get_path(self, context) -> str:
         asset_path = '/'.join(self.path_prefix + list(context.asset_key.path))
         # Return a LakeFS URI
-        return f"lakefs://{self.repository}/{self.branch}/processed_data/{asset_path}"
+        return f"lakefs://{self.repository}/{self.branch}/{asset_path}"
     
     def _folder_path(self, context) -> str:
         asset_path = '/'.join(self.path_prefix + list(context.asset_key.path))
-        return f"processed_data/{asset_path}"
+        return f"{asset_path}"
     def _get_fs(self):
         return LakeFSFileSystem(
             host=self.lakefs_endpoint,
@@ -112,12 +112,6 @@ class MyIOManager(dg.ConfigurableIOManager):
             # path = path + '.txt'
             with fs.open(path + '.txt', 'w', encoding='utf-8') as f:
                 f.write(obj)
-        # tuple/list of primitives (e.g., split_data returns)
-        # elif isinstance(obj, (tuple, list)):
-        #     path = path + '.pkl'
-        #     with fs.open(path + '.pkl', 'wb') as f:
-        #         pickle.dump(obj, f)
-        # None
         elif obj is None:
             # path = path + '.none'
             with fs.open(path + '.none', 'w', encoding='utf-8') as f:
@@ -223,6 +217,6 @@ def my_io_manager_from_env(context, required_resource_keys={"lakefs"}) -> MyIOMa
         lakefs_access_key=os.environ["LAKEFS_USERNAME"],
         lakefs_secret_key=os.environ["LAKEFS_PASSWORD"],
         repository=os.environ["LAKEFS_REPOSITORY"],
-        branch=os.environ.get("LAKEFS_DEFAULT_BRANCH"),
+        branch=os.environ.get("LAKEFS_PROCESS_BRANCH"),
         path_prefix=[],
     )

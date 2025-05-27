@@ -11,17 +11,17 @@ def predict_percent(context: AssetExecutionContext, prepare_data) -> float:
     df = prepare_data
     if not isinstance(df, pd.DataFrame):
         context.log.error("Input to predict_percent is not a DataFrame.")
-        return None
+        return True
     if "popularity" not in df.columns:
         context.log.error("No 'popularity' column found in input data. Cannot calculate percent correct.")
-        return None
+        return True
     X = df.drop(columns=["popularity"])
     y_true = df["popularity"]
     # Load latest production model from MLflow
     model_name = os.getenv("MLFLOW_MODEL_NAME") or os.getenv("MLFLOW_EXPERIMENT_NAME")
     if not model_name:
         context.log.error("MLFLOW_MODEL_NAME or MLFLOW_EXPERIMENT_NAME not set. Cannot load model.")
-        return None
+        return True
     try:
         model = mlflow.pyfunc.load_model(model_uri=f"models:/{model_name}/Production")
         y_pred = model.predict(X)
@@ -42,4 +42,4 @@ def predict_percent(context: AssetExecutionContext, prepare_data) -> float:
         return percent
     except Exception as e:
         context.log.error(f"Failed to predict or calculate percent: {e}")
-        return None
+        return True
