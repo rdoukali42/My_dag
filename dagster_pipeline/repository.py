@@ -10,6 +10,8 @@ from dagster_pipeline.assets.getProdMetrics import get_production_model_metrics
 from dagster_pipeline.assets.prepare_data import prepare_data
 from dagster_pipeline.assets.predict_percent import predict_percent
 from dagster_pipeline.assets.predict_asset_act import predict_asset_act
+from dagster_pipeline.assets.archive_run import archive_run_data
+from dagster_pipeline.assets.check_model_if_exist import check_model_if_exist
 
 # Import jobs instead of assets for LakeFS operations
 from dagster_pipeline.jobs.lakefs_jobs import setup_lakefs_job, cleanup_lakefs_job
@@ -23,20 +25,14 @@ from dagster_pipeline.io_managers.local_data_io_manager import my_io_manager_fro
 # Import the actual sensors
 from dagster_pipeline.resources.sensors import new_data_sensor
 from dagster_pipeline.resources.sensor_merge import merge_and_retrain_sensor
-# from dagster_pipeline.resources.sensor_check_merge import check_merge_sensor, after_test_job_sensor, after_retrain_job_sensor
+from dagster_pipeline.resources.sensors_local import smart_pipeline_sensor, redeploy_decision_sensor, training_decision_sensor, check_model_job, redeploy_job, training_job
 
-# lakefs_config = {
-#     "host": "http://localhost:8000/",
-#     "username": "AKIAJR5HULP424UQEVVQ",
-#     "password": "RmC0y4XMFfC4wEXj181jxxFKt03Px1MzCsGWSUQkY",
-#     "repository": "dagster-cloud",
-#     "default_branch": "main"
-# }
 
 defs = Definitions(
     assets=[
         load_data,
         prepare_data,
+        check_model_if_exist,
         split_data,
         split_data_train,
         split_data_test,
@@ -47,12 +43,16 @@ defs = Definitions(
         get_production_model_metrics,
         predict_percent,
         predict_asset_act,
+        archive_run_data,
         # setup_lakefs_repository,
         # cleanup_lakefs_repository
     ],
     jobs = [
         setup_lakefs_job,
-        cleanup_lakefs_job
+        cleanup_lakefs_job,
+        check_model_job,
+        redeploy_job,
+        training_job
     ],
     resources={
         "mlflow": mlflow_resource,
@@ -73,5 +73,5 @@ defs = Definitions(
             "path_prefix":  []
     })
     },
-    sensors=[new_data_sensor, merge_and_retrain_sensor]
+    sensors=[new_data_sensor, merge_and_retrain_sensor, smart_pipeline_sensor, redeploy_decision_sensor, training_decision_sensor]
 )

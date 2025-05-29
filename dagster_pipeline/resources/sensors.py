@@ -1,6 +1,7 @@
 from typing import Union, List
 import time
 import json
+import os
 from datetime import datetime
 from lakefs_spec import LakeFSFileSystem
 from dagster import (
@@ -35,7 +36,6 @@ retrain_job = define_asset_job(
     required_resource_keys={"lakefs"}
 )
 def new_data_sensor(context: SensorEvaluationContext) -> Union[SkipReason, List[RunRequest]]:
-    import os
     fs = context.resources.lakefs
     repo = os.getenv("LAKEFS_REPOSITORY")
     branch = os.getenv("LAKEFS_DEFAULT_BRANCH")

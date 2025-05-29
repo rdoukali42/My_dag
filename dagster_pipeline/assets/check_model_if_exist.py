@@ -1,89 +1,28 @@
+from dagster import asset, MetadataValue
 import os
 import pandas as pd
+import json
+from pathlib import Path
 
-
-
-def list_lakefs_csv_files(fs, repo, branch, folder):
-    files = fs.ls(f"{repo}/{branch}/{folder}/")
-    return [f["name"] if isinstance(f, dict) else f for f in files if (f["name"] if isinstance(f, dict) else f).endswith(".csv")]
-
-
-def merge_csv_files(fs, repo, branch, csv_files):
-    import pandas as pd
-    return pd.concat([
-        pd.read_csv(fs.open(f"lakefs://{repo}/{branch}/{file_path}")) for file_path in csv_files
-    ], ignore_index=True)
-
-
-def save_merged_csv(fs, repo, branch, folder, merged_df):
-    merged_path = f"{folder}/merged.csv"
-    merged_uri = f"lakefs://{repo}/{branch}/{merged_path}"
-    with fs.open(merged_uri, "w") as f:
-        merged_df.to_csv(f, index=False)
-    return merged_path, merged_uri
-
-
-def remove_old_files(fs, repo, branch, csv_files, merged_path, context=None):
-    for file_path in csv_files:
-        if file_path != merged_path:
-            try:
-                fs.rm(f"{repo}/{branch}/{file_path}")
-                if context:
-                    context.log.info(f"Removed old file: {file_path}")
-            except Exception as e:
-                if context:
-                    context.log.warning(f"Failed to remove {file_path}: {e}")
-
-
-def load_csv_with_encoding_fallback(fs, lakefs_uri, context):
-    # List of encodings to try in order
-    encodings_to_try = ['utf-8', 'latin-1', 'cp1252', 'iso-8859-1']
-    
-    for encoding in encodings_to_try:
-        try:
-            context.log.info(f"Trying to load CSV with encoding: {encoding}")
-            with fs.open(lakefs_uri, encoding=encoding) as f:
-                return pd.read_csv(f)
-        except UnicodeDecodeError as e:
-            context.log.warning(f"{encoding} decode failed: {e}")
-            continue
-        except Exception as e:
-            context.log.warning(f"Failed to load CSV with {encoding}: {e}")
-            continue
-    
-    # Last resort: try with errors='ignore' to skip problematic bytes
-    try:
-        context.log.warning(f"Loading CSV with UTF-8 and ignoring decode errors")
-        with fs.open(lakefs_uri, encoding='utf-8', errors='ignore') as f:
-            return pd.read_csv(f)
-    except Exception as e:
-        context.log.error(f"Failed to load CSV with error handling: {e}")
-        raise
-
-
-def get_run_path(fs, repo, branch):
-    last_run_path = f"{repo}/{branch}/Last_run/"
-    if fs.exists(last_run_path):
-        return last_run_path
-    else:
-        raise FileNotFoundError(f"Last run path does not exist: {last_run_path}")
-    
-def get_archive_path(fs, repo, branch):
-    last_archive_path = f"{repo}/{branch}/archives/"
-    if fs.exists(last_archive_path):
-        return last_archive_path
-    else:
-        raise FileNotFoundError(f"Last archives path does not exist: {last_archive_path}") 
-
-
-def check_history_if_model_exist(context, prepare_data):
+"""Compare the uploaded-prepared data with all the prepared data from history ('archives/' folder) to check if it matches, 
+then return the old run process id and the model file to deploy it, if not ignore it and continue the next assets"""
+@asset(
+    description="Check if the model already exists in LakeFS History",
+    required_resource_keys={"lakefs"},
+    group_name="Model_data_check"
+)
+def check_model_if_exist(context, prepare_data):
     fs = context.resources.lakefs
     repo = os.getenv("LAKEFS_REPOSITORY")
     branch = os.getenv("LAKEFS_PROCESS_BRANCH")
     archive_folder = f"lakefs://{repo}/{branch}/archives/"
     
+    # Extract data path from run tags if available
+    data_path = context.run.tags.get("data_path", "unknown")
+    
     context.log.info(f"Checking for existing models in: {archive_folder}")
     context.log.info(f"Current prepared data shape: {prepare_data.shape}")
+    context.log.info(f"Processing data from: {data_path}")
     
     try:
         # List all subdirectories in archives folder
@@ -102,7 +41,24 @@ def check_history_if_model_exist(context, prepare_data):
         
         if not archive_runs:
             context.log.info("No archived runs found")
-            return None
+            
+            context.add_output_metadata({
+                "exact_match_found": MetadataValue.bool(False),
+                "data_path": MetadataValue.text(data_path),
+                "message": MetadataValue.text("No archived runs found"),
+                "data_previously_used": MetadataValue.bool(False),
+                "previous_run_id": MetadataValue.text("none")
+            })
+            
+            return {
+                "model_exists": False,
+                "message": "No archived runs found",
+                "previous_usage": {
+                    "data_previously_used": False,
+                    "previous_run_id": "none",
+                    "exact_match_found": False
+                }
+            }
             
         # Check each archived run for matching data and models
         for run_folder in archive_runs:
@@ -161,10 +117,14 @@ def check_history_if_model_exist(context, prepare_data):
                                 folder_name = Path(run_folder.rstrip('/')).name
 
                                 context.add_output_metadata({
-                                    "model_file": model_file,
-                                    "run_id": folder_name.split('_')[0],  # Extract short run ID
-                                    "run_folder": run_folder,
-                                    "message": f"Reusing existing model from {folder_name}"
+                                    "exact_match_found": MetadataValue.bool(True),
+                                    "data_path": MetadataValue.text(data_path),
+                                    "model_file": MetadataValue.text(model_file),
+                                    "run_id": MetadataValue.text(folder_name.split('_')[0]),
+                                    "run_folder": MetadataValue.text(run_folder),
+                                    "message": MetadataValue.text(f"Reusing existing model from {folder_name}"),
+                                    "data_previously_used": MetadataValue.bool(True),
+                                    "previous_run_id": MetadataValue.text(folder_name.split('_')[0])
                                 })
                                 
                                 return {
@@ -172,7 +132,12 @@ def check_history_if_model_exist(context, prepare_data):
                                     "model_file": model_file,
                                     "run_id": folder_name.split('_')[0],  # Extract short run ID
                                     "run_folder": run_folder,
-                                    "message": f"Reusing existing model from {folder_name}"
+                                    "message": f"Reusing existing model from {folder_name}",
+                                    "previous_usage": {
+                                        "data_previously_used": True,
+                                        "previous_run_id": folder_name.split('_')[0],
+                                        "exact_match_found": True
+                                    }
                                 }
                             else:
                                 context.log.info(f"Data shapes match but content differs for {run_folder}")
@@ -191,15 +156,43 @@ def check_history_if_model_exist(context, prepare_data):
         
         # No matching model found
         context.log.info("🔍 No matching models found in archive")
+        
+        context.add_output_metadata({
+            "exact_match_found": MetadataValue.bool(False),
+            "data_path": MetadataValue.text(data_path),
+            "message": MetadataValue.text("No matching model found, will train new model"),
+            "data_previously_used": MetadataValue.bool(False),
+            "previous_run_id": MetadataValue.text("none")
+        })
+        
         return {
             "model_exists": False,
-            "message": "No matching model found, will train new model"
+            "message": "No matching model found, will train new model",
+            "previous_usage": {
+                "data_previously_used": False,
+                "previous_run_id": "none",
+                "exact_match_found": False
+            }
         }
             
     except Exception as e:
         context.log.error(f"Error checking for existing models: {e}")
+        
+        context.add_output_metadata({
+            "exact_match_found": MetadataValue.bool(False),
+            "data_path": MetadataValue.text(data_path),
+            "message": MetadataValue.text(f"Error during model check: {str(e)}"),
+            "data_previously_used": MetadataValue.bool(False),
+            "previous_run_id": MetadataValue.text("error")
+        })
+        
         # Don't raise the exception, just return no match found
         return {
             "model_exists": False,
-            "message": f"Error during model check: {str(e)}"
-        }  
+            "message": f"Error during model check: {str(e)}",
+            "previous_usage": {
+                "data_previously_used": False,
+                "previous_run_id": "error",
+                "exact_match_found": False
+            }
+        }

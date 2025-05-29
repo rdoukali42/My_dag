@@ -16,14 +16,14 @@ from dagster_pipeline.resources.sensors import retrain_job
 @sensor(
     job=retrain_job,
     minimum_interval_seconds=30,
-    description="Monitors lakeFS 'merge_data' folder for new CSVs and merges them if columns match.",
+    description="Monitors lakeFS 'new_merge_data' folder for new CSVs and merges them if columns match.",
     required_resource_keys={"lakefs"}
 )
 def merge_and_retrain_sensor(context: SensorEvaluationContext) -> Union[SkipReason, List[RunRequest]]:
     fs = context.resources.lakefs
     repo = os.getenv("LAKEFS_REPOSITORY")
     branch = "main"
-    merge_folder = "new_data/merge_data"
+    merge_folder = "new_merge_data"
     files = fs.ls(f"{repo}/{branch}/{merge_folder}/")
     # Fix: strip any accidental repo/branch prefix from csv_files
     def strip_prefix(path):
@@ -60,9 +60,24 @@ def merge_and_retrain_sensor(context: SensorEvaluationContext) -> Union[SkipReas
         pd.read_csv(fs.open(f"lakefs://{repo}/{branch}/{file_path}")) for file_path in csv_files
     ], ignore_index=True)
 
-    # Save merged file to a temp location in lakeFS (e.g., merge_data/merged.csv)
-    merged_path = f"{merge_folder}/merged.csv"
-    merged_uri = f"lakefs://{repo}/{branch}/{merged_path}"
+    #Convert all csv file to parquet format
+    for file_path in csv_files:
+        lakefs_uri = f"lakefs://{repo}/{branch}/{file_path}"
+        try:
+            with fs.open(lakefs_uri) as f:
+                df = pd.read_csv(f)
+            parquet_path = lakefs_uri.replace('.csv', '.parquet')
+            with fs.open(parquet_path, 'wb') as pf:
+                df.to_parquet(pf, index=False, compression='snappy')
+            context.log.info(f"Converted {file_path} to Parquet: {parquet_path}")
+        except Exception as e:
+            context.log.warning(f"Failed to convert {lakefs_uri} to Parquet: {e}")
+    # Save merged file to a temp location in lakeFS
+    #save the merged DataFrame with a name compase of each file name (without .csv) and add merged.csv at the end (e.g., file1_file2_merged.csv)
+    merged_path = "_".join([os.path.splitext(os.path.basename(f))[0] for f in csv_files]) + "_merged.csv"
+    # merged_path = f"{merge_folder}/merged.csv"
+    print(f"[DEBUG] Merged path: {merged_path}")
+    merged_uri = f"lakefs://{repo}/{branch}/{merge_folder}/{merged_path}"
     with fs.open(merged_uri, "w") as f:
         merged_df.to_csv(f, index=False)
     context.log.info(f"Merged CSVs saved to {merged_uri}")

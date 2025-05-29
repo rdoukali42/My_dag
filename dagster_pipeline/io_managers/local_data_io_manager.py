@@ -47,12 +47,14 @@ class MyIOManager(dg.ConfigurableIOManager):
 
     def _get_path(self, context) -> str:
         asset_path = '/'.join(self.path_prefix + list(context.asset_key.path))
+        folder_act = "Last_run"
         # Return a LakeFS URI
-        return f"lakefs://{self.repository}/{self.branch}/{asset_path}"
+        return f"lakefs://{self.repository}/{self.branch}/{folder_act}/{asset_path}"
     
     def _folder_path(self, context) -> str:
         asset_path = '/'.join(self.path_prefix + list(context.asset_key.path))
-        return f"{asset_path}"
+        folder_act = "Last_run"
+        return f"{folder_act}/{asset_path}"
     def _get_fs(self):
         return LakeFSFileSystem(
             host=self.lakefs_endpoint,
